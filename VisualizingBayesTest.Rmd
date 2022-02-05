@@ -1,0 +1,192 @@
+---
+title: "Bayes Testing"
+author: "Ibraheem Khan"
+date: "1/30/2022"
+output: html_document
+self_contained: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library('latex2exp')
+library('gifski')
+```
+
+# Bayes Testing- Setup
+
+Bayes testing is a hypothesis testing procedure by which the null is rejected if the posterior probability of the tested parameter not lying in the null region is greater than some threshold probability. Suppose we want to test the mean $\theta$ of a Normally distributed random variable $X \sim N(\theta, \sigma^2)$ and our threshold $c=0.50$. Specifically, our null hypothesis is $H_0: \theta \leq -0.5$. Here we illustrate the Bayes testing procedure for this setup and we test it with various different priors and across different sample sizes. 
+
+NOTE: This document uses animations to show how the plots change with sample sizes 1,2,3,5,10,25,50,and 100. As can be seen below, eventually all the plots correctly converge although many start off very wrong. 
+
+# Sample Generation
+
+```{r,animation.hook='gifski'}
+#n <- 1 #sample size
+n_select <- c(1,2,3,5,10,25,50,100)
+for (n in n_select){
+theta <- 0 #true mean
+sigma <- 1 #true standard deviation
+sample <- rnorm(n,theta,sigma)
+sample_histogram<-hist(sample, prob=TRUE, 
+                       main="Histogram of sample compared to True Density",
+                       xlab="Sample Value", ylab="Probability",
+                       xlim=c(-3*sigma+theta,3*sigma+theta), ylim=c(0,0.5))
+curve(dnorm(x,mean=theta,sd=sigma), add=TRUE)
+}
+
+```
+
+# Prior
+
+```{r}
+mu <- 2
+tau <- 1
+bin_size <-1/25
+grid <- seq(-3*tau+mu,3*tau+mu,by=bin_size)
+standard_prior <- dnorm(grid,mu,tau)
+plot(grid,standard_prior, main="Discrete Standard Prior", 
+     xlab=TeX('$\\theta$: Mean Parameter Value'), ylab="Probability")
+```
+
+# Posterior
+
+```{r, animation.hook='gifski'}
+n_select <- c(1,2,3,5,10,25,50,100)
+for (n in n_select){
+theta <- 0 #true mean
+sigma <- 1 #true standard deviation
+sample <- rnorm(n,theta,sigma)
+
+
+likelihood<-function(t,data){
+  likl <- prod(dnorm(data,mean=t[1],sd=sigma))
+  for (i in seq(2,length(t))) {
+    likl <- append(likl,prod(dnorm(data,mean=t[i],sd=sigma)))
+  }
+  return(likl)
+}
+nn_posterior<- likelihood(grid,sample)*standard_prior
+posterior<-nn_posterior/sum(nn_posterior*bin_size)
+plot(grid,posterior, main='Discretized Normal Posterior', xlab='Mean Parameter', ylab='Density')
+posterior_mean<-(n*(tau^2)*mean(sample)+(sigma^2)*mu)/(n*(tau^2)+(sigma^2))
+posterior_sd<-sqrt(((sigma^2)*(tau^2))/(n*(tau^2)+(sigma^2)))
+curve(dnorm(x,mean=posterior_mean,sd=posterior_sd),xlim=c(-3*tau+mu,3*tau+mu),col='blue', add=TRUE)
+curve(dnorm(x,mean=theta,sd=sigma/(sqrt(n))),col='red', add=TRUE)
+legend('topright',
+       legend=c('Approximate Normal Posterior','Analytic Normal Posterior','True Density'),
+       col=c('black','blue','red'),bty='n',cex=1,lwd=1)
+}
+```
+
+# Testing
+
+So as we can see, the simulation works as expected for normal priors. That is, the posteriors given via the discrete approximation and the one given by our analytical solution from class agree. Moreover, we can make a decision to reject the null if the posterior probability of the mean being less than -0.5 is less than 50%. 
+
+And observe that this probability is in fact less than 50%.
+```{r}
+#grid[4]=-0.4
+sum(posterior[1:4]*bin_size)
+pnorm(-0.4,posterior_mean,posterior_sd)
+```
+
+# Arbitrary Priors
+
+```{r}
+random_prior<-array(0,length(grid))
+algebraic_prior<-array(0,length(grid))
+trigonometric_prior<-array(0,length(grid))
+length(random_prior)
+for (i in seq_along(grid)){
+  random_prior[i]=runif(1,0,3)
+  algebraic_prior[i]=(i-0.1*i)^5
+  trigonometric_prior[i]=abs(cos(i/(2*pi)))
+}
+#normalizing
+random_prior <- random_prior/(sum(random_prior*bin_size))
+algebraic_prior <- algebraic_prior/(sum(algebraic_prior*bin_size))
+trigonometric_prior <- trigonometric_prior/(sum(trigonometric_prior*bin_size))
+sum(random_prior*bin_size)
+plot(grid,random_prior, main="Discrete Random Prior", 
+     xlab=TeX('$\\theta$: Mean Parameter Value'), ylab="Density")
+plot(grid,algebraic_prior, main="Discrete Algebraic Prior", 
+     xlab=TeX('$\\theta$: Mean Parameter Value'), ylab="Density")
+plot(grid,trigonometric_prior, main="Discrete Trigonometric Prior", 
+     xlab=TeX('$\\theta$: Mean Parameter Value'), ylab="Density")
+```
+
+Now we reproduce our experiments from before with these priors.
+
+# Computing Aribitrary Posteriors
+```{r,animation.hook='gifski'}
+n_select <- c(1,2,3,5,10,25,50,100)
+for (n in n_select){
+theta <- 0 #true mean
+sigma <- 1 #true standard deviation
+sample <- rnorm(n,theta,sigma)
+
+random_likelihood<-function(t,data){
+  likl <- prod(dnorm(data,mean=t[1],sd=sigma))
+  for (i in seq(2,length(t))) {
+    likl <- append(likl,prod(dnorm(data,mean=t[i],sd=sigma)))
+  }
+  return(likl)
+}
+random_nn_posterior<- random_likelihood(grid,sample)*random_prior
+random_posterior<-random_nn_posterior/sum(random_nn_posterior*bin_size)
+plot(grid,random_posterior,main='Posterior with Random Prior', xlab='Mean Parameter', ylab='Density')
+
+curve(dnorm(x,mean=posterior_mean,sd=posterior_sd),xlim=c(-3*tau+mu,3*tau+mu),col='blue', add=TRUE)
+curve(dnorm(x,mean=theta,sd=sigma/(sqrt(n))),col='red', add=TRUE)
+legend('topright',
+       legend=c('Random Posterior','Analytic Normal Posterior','True Density'),
+       col=c('black','blue','red'),bty='n',cex=1,lwd=1)
+}
+```
+```{r,animation.hook='gifski'}
+n_select <- c(1,2,3,5,10,25,50,100)
+for (n in n_select){
+theta <- 0 #true mean
+sigma <- 1 #true standard deviation
+sample <- rnorm(n,theta,sigma)
+algebraic_likelihood<-function(t,data){
+  likl <- prod(dnorm(data,mean=t[1],sd=sigma))
+  for (i in seq(2,length(t))) {
+    likl <- append(likl,prod(dnorm(data,mean=t[i],sd=sigma)))
+  }
+  return(likl)
+}
+algebraic_nn_posterior<- algebraic_likelihood(grid,sample)*algebraic_prior
+algebraic_posterior<-algebraic_nn_posterior/sum(algebraic_nn_posterior*bin_size)
+plot(grid,algebraic_posterior,main='Posterior with Algebraic Prior', xlab='Mean Parameter', ylab='Density')
+
+curve(dnorm(x,mean=posterior_mean,sd=posterior_sd),xlim=c(-3*tau+mu,3*tau+mu),col='blue', add=TRUE)
+curve(dnorm(x,mean=theta,sd=sigma/(sqrt(n))),col='red', add=TRUE)
+legend('topright',
+       legend=c('Alg Posterior','Analytic Normal Posterior','True Density'),
+       col=c('black','blue','red'),bty='n',cex=1,lwd=1)
+}
+```
+```{r,animation.hook='gifski'}
+n_select <- c(1,2,3,5,10,25,50,100)
+for (n in n_select){
+theta <- 0 #true mean
+sigma <- 1 #true standard deviation
+sample <- rnorm(n,theta,sigma)
+trig_likelihood<-function(t,data){
+  likl <- prod(dnorm(data,mean=t[1],sd=sigma))
+  for (i in seq(2,length(t))) {
+    likl <- append(likl,prod(dnorm(data,mean=t[i],sd=sigma)))
+  }
+  return(likl)
+}
+trig_nn_posterior<-trig_likelihood(grid,sample)*trigonometric_prior
+trig_posterior<-trig_nn_posterior/sum(trig_nn_posterior*bin_size)
+plot(grid,trig_posterior,main='Posterior with Trig Prior', xlab='Mean Parameter', ylab='Density')
+
+curve(dnorm(x,mean=posterior_mean,sd=posterior_sd),xlim=c(-3*tau+mu,3*tau+mu),col='blue',add=TRUE)
+curve(dnorm(x,mean=theta,sd=sigma/(sqrt(n))),col='red', add=TRUE)
+legend('topright',
+       legend=c('Trig Posterior','Analytic Normal Posterior','True Density'),
+       col=c('black','blue','red'),bty='n',cex=1,lwd=1)
+}
+```
